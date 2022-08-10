@@ -14,6 +14,7 @@ import ProtectedRoute from './ProtectedRoute';
 import Register from './Register';
 import Login from './Login';
 import * as auth from '../utils/auth'
+import InfoTooltip from './InfoTooltip';
 
 
 function App() {
@@ -21,48 +22,74 @@ function App() {
   const [isEditAvatarPopupOpen, setIsEditAvatarPopupOpen] = React.useState(false);
   const [isEditProfilePopupOpen, setIsEditProfilePopupOpen] = React.useState(false);
   const [isAddPlacePopupOpen, setIsAddPlacePopupOpen] = React.useState(false);
-
   const [isPopupClose, setIsPopupClose] = React.useState(false);
-
   const [selectedCard, setSelectedCard] = React.useState(null);
-
   const [currentUser, setСurrentUser] = React.useState(null);
-
   const [cards, setCards] = React.useState([])
-
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
-
-  const [userInfo, setUserInfo] = React.useState({
-    email:'',
-    password:'',
-  });
+  const [userInfo, setUserInfo] = React.useState('');
+  const [isInfoTooltipOpen, setIsInfoTooltipOpen] = React.useState(false)
+  const [authMessage, setAuthMessage] = React.useState(false);
 
   const history = useHistory();
-
-  const tokenCheck = () => {
-    const jwt = localStorage.getItem('jwt');
-    if (!jwt) {
-      return;
-    }
-    auth
-    .getContent(jwt)
-    .then(({ email,password }) => {
-      setUserInfo({ email,password });
-      setIsLoggedIn(true);
-    });
-    };
 
     const onRegister = (data) => {
       return auth
         .register(data)
         .then(() => {
+          setIsInfoTooltipOpen(true);
           history.push('/signin');
-        });
+          setAuthMessage(true);
+        })
+        .catch(()=>{
+          setIsInfoTooltipOpen(true);
+          setAuthMessage(false);
+        })
     };
+
+    const tokenCheck = () => {
+      const jwt = localStorage.getItem('jwt');
+      if (!jwt) {
+        return;
+      }
+      return auth
+      .getContent(jwt)
+      .then((res) => {
+        setUserInfo( res.data.email );
+        setIsLoggedIn(true);
+      })
+      .catch((err) => console.log(err));
+      };
+
+    const onLogin = (data) => {
+      return auth
+        .authorize(data)
+        .then((res) => {
+          setIsLoggedIn(true);
+          localStorage.setItem("jwt", res.token)
+          setUserInfo( data.email )
+          console.log(userInfo)
+        })
+        .catch((err) => console.log(err));
+    }
+
+    React.useEffect(() => {
+      if (isLoggedIn) {
+        history.push('/');
+      }
+    }, [isLoggedIn]);
+
 
     React.useEffect(() => {
       tokenCheck();
     }, []);
+
+    const onLogout = () => {
+      setIsLoggedIn(false);
+      localStorage.removeItem('jwt');
+      history.push('/signin');
+    };
+  
 
   function handleEditAvatarClick(){
     setIsEditAvatarPopupOpen(true);
@@ -85,6 +112,7 @@ function App() {
     setIsEditProfilePopupOpen(false);
     setIsAddPlacePopupOpen(false);
     setSelectedCard(null);
+    setIsInfoTooltipOpen(false);
   }
 
   function handleCardLike(card) {
@@ -150,7 +178,6 @@ function App() {
         console.log(err);
       })
     }
-  
 
   React.useEffect(() => {
     api.getUserData()
@@ -173,13 +200,15 @@ function App() {
   return (
     <div className="page">
     <CurrentUserContext.Provider value={currentUser}>
-    <Header/>
-
+    <Header
+      onLogout={onLogout}
+      email={userInfo}
+    />
     <Switch>
     <ProtectedRoute
       component={Main}
-      exact
-      path="/"
+      exact path="/"
+      isLoggedIn={isLoggedIn}
       onEditAvatar={handleEditAvatarClick}
       onEditProfile={handleEditProfileClick}
       onAddPlace={handleAddPlaceClick}
@@ -187,14 +216,12 @@ function App() {
       cards = {cards}
       onCardLike = {handleCardLike}
       onCardDelete = {handleCardDelete}
-      loggedIn={isLoggedIn}
 
     />
       <ProtectedRoute
-      exact
-      path="/"
       component={Footer}
-      loggedIn={isLoggedIn}
+      exact path="/"
+      isLoggedIn={isLoggedIn}
       />
 
     <Route path="/signup">
@@ -203,14 +230,21 @@ function App() {
       />
     </Route>
     <Route path="/signin">
-      {/* <Login 
-        onLogin={isLoggedIn} 
-      /> */}
+      <Login 
+        onLogin={onLogin} 
+      />
     </Route>
-    <Route exact path="/">
+    <Route>
       {isLoggedIn ? <Redirect to="/" /> : <Redirect to="/signup" />}
     </Route>
     </Switch> 
+
+    <InfoTooltip
+      isOpen={isInfoTooltipOpen}
+      onClose={closeAllPopups}
+      auth={authMessage}
+      name = "signup"    
+    />
 
     <EditAvatarPopup 
       isOpen={isEditAvatarPopupOpen} 
